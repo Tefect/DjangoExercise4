@@ -1,0 +1,43 @@
+<style>
+    body {
+        /* This sets your background color */
+        background-color: #f1f3f6; 
+        
+        /* This centers everything and makes it look like a "card" */
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+    }
+
+    .poll-card {
+        background: rgb(20, 225, 194);
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+        width: 100%;
+        max-width: 400px;   
+    }
+
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px; }
+</style>
+
+<div class="poll-card">
+    <h1>{{ question.question_text }}</h1>
+
+    <ul>
+    {% for choice in question.choice_set.all %}
+        <li>
+            <strong>{{ choice.choice_text }}</strong>: 
+            {{ choice.votes }} vote{{ choice.votes|pluralize }}
+        </li>
+    {% endfor %}
+    </ul>
+
+    <a href="{% url 'polls:detail' question.id %}" style="text-decoration: none; color: #007bff;">
+        ← Vote again
+    </a>
+</div>
