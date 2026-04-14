@@ -2,46 +2,50 @@ pipeline {
     agent any
 
     environment {
-        EC2_USER = "ubuntu"
-        EC2_HOST = "3.16.1.1" 
-        EC2_KEY_ID = 'ec2-ssh-private-key'
-        // This is where the code will live on your server
-        PROJECT_ROOT = "/home/ubuntu/pythonprojects"
+        // --- CONFIGURATION SECTION ---
+        EC2_USER    = "ubuntu"
+        EC2_HOST    = "3.16.1.1" 
+        CRED_ID     = "ec2-ssh-private-key"
         PROJECT_DIR = "/home/ubuntu/pythonprojects/djangotutorial"
+        REPO_URL    = "https://github.com/Tefect/DjangoExercise4.git"
+        // ------------------------------
     }
 
     stages {
-        stage('Deploy & Setup on EC2') {
+        stage('Deploy to EC2') {
             steps {
                 script {
-                    sshagent (credentials: [EC2_KEY_ID]) {
+                    sshagent([CRED_ID]) {
                         sh """
                         ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "
-                            # 1. Install system dependencies (Fixes the venv error)
-                            sudo apt-get update && sudo apt-get install -y python3-venv python3-pip
+                            # 1. Update system and install Python/Git tools
+                            sudo apt-get update && sudo apt-get install -y python3-venv python3-pip git
 
                             # 2. Ensure the parent directory exists
-                            mkdir -p ${PROJECT_ROOT}
+                            mkdir -p /home/ubuntu/pythonprojects
 
-                            # 3. If project doesn't exist, clone it. Otherwise, pull updates.
+                            # 3. Clone if first time, otherwise Pull updates
                             if [ ! -d '${PROJECT_DIR}/.git' ]; then
-                                echo 'Cloning repository for the first time...'
-                                cd ${PROJECT_ROOT}
-                                git clone https://github.com/Tefect/DjangoExercise4.git djangotutorial
+                                echo 'Folder missing. Cloning repository...'
+                                cd /home/ubuntu/pythonprojects
+                                git clone ${REPO_URL} djangotutorial
                             fi
 
-                            # 4. Navigate to project and update code
+                            # 4. Move into project and get latest changes from MASTER
                             cd ${PROJECT_DIR}
-                            git pull origin main
+                            git pull origin master
 
-                            # 5. Setup and update Virtual Environment
-                            python3 -m venv comp314
+                            # 5. Create Virtual Environment if it doesn't exist
+                            if [ ! -d 'comp314' ]; then
+                                python3 -m venv comp314
+                            fi
+
+                            # 6. Activate venv and install dependencies
                             source comp314/bin/activate
                             pip install --upgrade pip
                             pip install -r requirements.txt
-                            
-                            # 6. Optional: Run migrations (if needed for Django)
-                            # python3 manage.py migrate
+
+                            echo 'Deployment successful.'
                         "
                         """
                     }
@@ -52,10 +56,10 @@ pipeline {
 
     post {
         success {
-            echo "Successfully deployed to EC2!"
+            echo "SUCCESS: Code updated on EC2 (Master branch)."
         }
         failure {
-            echo "Deployment failed. Ensure your EC2 security group allows SSH and your .pem key is correct in Jenkins."
+            echo "FAILURE: Check the Jenkins console and your EC2 logs."
         }
     }
 }
