@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         EC2_USER = "ubuntu"  // Or ubuntu, depending on your AMI
-        EC2_HOST = "http://3.16.1.1" //(MODIFY)
+        EC2_HOST = "3.16.1.1" //(MODIFY)
         EC2_KEY = credentials('ec2-ssh-private-key')  // Jenkins credential with SSH private key (MODIFY)
         PROJECT_DIR = "/home/ubuntu/pythonprojects/django_polls"  // Path to your Django app (MODIFY)
         
