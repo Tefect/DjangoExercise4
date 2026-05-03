@@ -28,7 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = os.environ.get(
     "DJANGO_ALLOWED_HOSTS",
-    "3.16.1.1,localhost,127.0.0.1",
+    "*",
 ).split(",")
 
 
