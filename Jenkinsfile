@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         EC2_USER     = "ubuntu"
-        EC2_HOST     = "3.144.147.163"
+        EC2_HOST     = "3.134.107.253"
         CRED_ID      = "ec2-ssh-private-key"
         DOCKER_IMAGE = "tefect/djangoexercise4"
         DOCKER_CREDS = credentials('docker-hub-credentials')  // Jenkins credential: Username with password
