@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         EC2_USER          = "ubuntu"
-        EC2_HOST          = "3.21.167.100"
+        EC2_HOST          = "3.139.90.22"
         CRED_ID           = "ec2-ssh-private-key"
 
         DOCKERHUB_USERNAME = "tefect"
@@ -133,8 +133,8 @@ pipeline {
     post {
         success {
             echo '✅ Deployment successful!'
-            echo '🌐 App URL: http://3.21.167.100'
-            echo '⚙️ Jenkins URL: http://3.21.167.100:8080'
+            echo '🌐 App URL: https://3.139.90.22'
+            echo '⚙️ Jenkins URL: https://3.139.90.22:8080'
         }
 
         failure {
