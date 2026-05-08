@@ -1,40 +1,81 @@
 pipeline {
     agent any
 
-    environment {
-        EC2_USER     = "ubuntu"
-        EC2_HOST     = "3.19.245.80"
-        CRED_ID      = "ec2-ssh-private-key"
-        DOCKER_IMAGE = "tefect/djangoexercise4"
-        DOCKER_CREDS = credentials('docker-hub-credentials')  // Jenkins credential: Username with password
-    }
-
     triggers {
         githubPush()
     }
 
+    environment {
+        EC2_USER          = "ubuntu"
+        EC2_HOST          = "3.21.167.100"
+        CRED_ID           = "ec2-ssh-private-key"
+
+        DOCKERHUB_USERNAME = "tefect"
+        IMAGE_NAME         = "tefect/djangoexercise4"
+        IMAGE_TAG          = "latest"
+
+        CONTAINER_NAME     = "django-container"
+        HOST_PORT          = "8081"
+        CONTAINER_PORT     = "80"
+    }
+
+    options {
+        timestamps()
+    }
+
     stages {
 
-        stage('Clone Repository') {
+        stage('Checkout') {
             steps {
-                git branch: 'master',
-                    url: 'https://github.com/Tefect/DjangoExercise4.git'
+                git url: 'https://github.com/Tefect/DjangoExercise4.git',
+                    branch: 'master'
+            }
+        }
+
+        stage('Verify Project Files') {
+            steps {
+                sh '''
+                    set -e
+                    echo "Checking required project files..."
+
+                    test -f Dockerfile || { echo "Dockerfile not found"; exit 1; }
+
+                    echo "Required files found."
+                    ls -la
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:latest ."
+                sh '''
+                    set -e
+                    docker build --pull -t "$IMAGE_NAME:$IMAGE_TAG" .
+                '''
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Login to Docker Hub') {
             steps {
-                sh """
-                    echo "${DOCKER_CREDS_PSW}" | docker login -u "${DOCKER_CREDS_USR}" --password-stdin
-                    docker push ${DOCKER_IMAGE}:latest
-                    docker logout
-                """
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        set -e
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                    set -e
+                    docker push "$IMAGE_NAME:$IMAGE_TAG"
+                '''
             }
         }
 
@@ -43,7 +84,8 @@ pipeline {
                 sshagent([CRED_ID]) {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
-                            # Install Docker if not already installed
+
+                            # Install Docker if missing
                             if ! command -v docker &> /dev/null; then
                                 sudo apt-get update -y
                                 sudo apt-get install -y docker.io
@@ -52,39 +94,56 @@ pipeline {
                                 sudo usermod -aG docker ubuntu
                             fi
 
-                            # Kill any old dev server on port 8000
-                            sudo fuser -k 8000/tcp || true
-
                             # Pull latest image
-                            sudo docker pull ${DOCKER_IMAGE}:latest
+                            sudo docker pull ${IMAGE_NAME}:${IMAGE_TAG}
 
                             # Stop and remove old container
-                            sudo docker stop django-container || true
-                            sudo docker rm   django-container || true
+                            sudo docker rm -f ${CONTAINER_NAME} || true
 
-                            # Run new container on port 80
+                            # Run new container
                             sudo docker run -d \
-                                --name django-container \
+                                --name ${CONTAINER_NAME} \
                                 --restart unless-stopped \
-                                -p 80:80 \
-                                ${DOCKER_IMAGE}:latest
+                                -p ${HOST_PORT}:${CONTAINER_PORT} \
+                                ${IMAGE_NAME}:${IMAGE_TAG}
 
                             sleep 5
+
+                            # Show running containers
                             sudo docker ps
-                            sudo docker logs django-container --tail 20 || true
+
+                            # Show logs
+                            sudo docker logs ${CONTAINER_NAME} --tail 20 || true
                         '
                     """
                 }
+            }
+        }
+
+        stage('Test Website') {
+            steps {
+                sh '''
+                    set -e
+                    curl -I http://3.21.167.100 || echo "Website not reachable yet"
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "SUCCESS: App is live at http://${EC2_HOST}"
+            echo '✅ Deployment successful!'
+            echo '🌐 App URL: http://3.21.167.100'
+            echo '⚙️ Jenkins URL: http://3.21.167.100:8080'
         }
+
         failure {
-            echo "FAILURE: Check the console output above for errors."
+            echo '❌ Deployment failed. Check Jenkins console output.'
+        }
+
+        always {
+            sh 'docker logout || true'
         }
     }
 }
+```
