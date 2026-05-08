@@ -1,37 +1,32 @@
-# ── Base image ──────────────────────────────────────────────────────────────
-FROM python:3.13.3-slim as base
+# Use official Python image
+FROM python:3.12-slim
 
+# Prevent Python from creating .pyc files
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Ensure logs appear immediately
 ENV PYTHONUNBUFFERED=1
 
-# Install nginx + build tools
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    build-essential \
-    nginx \
-    && rm -rf /var/lib/apt/lists/*
-
+# Set working directory
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt /app/
-RUN python3 -m pip install --no-cache-dir -r requirements.txt
-RUN python3 -m pip install gunicorn
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy full project
-COPY . /app/
+# Copy requirements first
+COPY requirements.txt .
 
-# Point Django at mysite/settings.py
-ENV DJANGO_SETTINGS_MODULE=mysite.settings
+# Install Python packages
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Migrate and collect static files at build time
-RUN python manage.py migrate --noinput
-RUN python manage.py collectstatic --noinput
+# Copy all project files
+COPY . .
 
-# Drop in nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Port 80 = nginx (public), gunicorn runs internally on 8000
+# Expose Django port
 EXPOSE 80
 
-# Start gunicorn then nginx
-CMD sh -c "gunicorn --chdir /app mysite.wsgi:application --bind 127.0.0.1:8000 --workers 2 & nginx -g 'daemon off;'"
+# Run migrations then start Django server
+CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:80"]
