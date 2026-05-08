@@ -124,7 +124,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    curl -I http://3.21.167.100 || echo "Website not reachable yet"
+                    curl -I https://3.139.90.22 || echo "Website not reachable yet"
                 '''
             }
         }
