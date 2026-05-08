@@ -1,149 +1,89 @@
 pipeline {
     agent any
-
+    
     triggers {
         githubPush()
     }
 
     environment {
-        EC2_USER          = "ubuntu"
-        EC2_HOST          = "3.139.90.22"
-        CRED_ID           = "ec2-ssh-private-key"
-
+        // Updated credentials and image info
         DOCKERHUB_USERNAME = "tefect"
         IMAGE_NAME         = "tefect/djangoexercise4"
         IMAGE_TAG          = "latest"
-
-        CONTAINER_NAME     = "django-container"
+        
+        // Container management
+        CONTAINER_NAME     = "django-jenkinstest"
         HOST_PORT          = "8081"
-        CONTAINER_PORT     = "80"
-    }
-
-    options {
-        timestamps()
+        CONTAINER_PORT     = "8000" // Standard Django port inside container
+        
+        // New Server IP
+        EC2_PUBLIC_IP      = "13.59.85.38"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/Tefect/DjangoExercise4.git',
+                git url: 'https://github.com/Tefect/DjangoExercise4.git', 
                     branch: 'master'
             }
         }
 
-        stage('Verify Project Files') {
+        stage('Verify Files') {
             steps {
                 sh '''
-                    set -e
-                    echo "Checking required project files..."
-
-                    test -f Dockerfile || { echo "Dockerfile not found"; exit 1; }
-
-                    echo "Required files found."
-                    ls -la
+                    echo "Scanning for Django project files..."
+                    test -f manage.py || { echo "manage.py missing!"; exit 1; }
+                    test -f Dockerfile || { echo "Dockerfile missing!"; exit 1; }
                 '''
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    set -e
-                    docker build --pull -t "$IMAGE_NAME:$IMAGE_TAG" .
-                '''
-            }
-        }
-
-        stage('Login to Docker Hub') {
+        stage('Build & Push') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'docker-hub-credentials',
+                    credentialsId: 'dockerhub-credentials',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                        set -e
+                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
                     '''
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Deploy Locally') {
             steps {
                 sh '''
-                    set -e
-                    docker push "$IMAGE_NAME:$IMAGE_TAG"
+                    # Kill old container if it exists
+                    docker rm -f "$CONTAINER_NAME" || true
+                    
+                    # Run the new one
+                    docker run -d \
+                      --name "$CONTAINER_NAME" \
+                      --restart unless-stopped \
+                      -p "$HOST_PORT:$CONTAINER_PORT" \
+                      "$IMAGE_NAME:$IMAGE_TAG"
                 '''
             }
         }
 
-        stage('Deploy on EC2') {
+        stage('Health Check') {
             steps {
-                sshagent([CRED_ID]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
-
-                            # Install Docker if missing
-                            if ! command -v docker &> /dev/null; then
-                                sudo apt-get update -y
-                                sudo apt-get install -y docker.io
-                                sudo systemctl start docker
-                                sudo systemctl enable docker
-                                sudo usermod -aG docker ubuntu
-                            fi
-
-                            # Pull latest image
-                            sudo docker pull ${IMAGE_NAME}:${IMAGE_TAG}
-
-                            # Stop and remove old container
-                            sudo docker rm -f ${CONTAINER_NAME} || true
-
-                            # Run new container
-                            sudo docker run -d \
-                                --name ${CONTAINER_NAME} \
-                                --restart unless-stopped \
-                                -p ${HOST_PORT}:${CONTAINER_PORT} \
-                                ${IMAGE_NAME}:${IMAGE_TAG}
-
-                            sleep 5
-
-                            # Show running containers
-                            sudo docker ps
-
-                            # Show logs
-                            sudo docker logs ${CONTAINER_NAME} --tail 20 || true
-                        '
-                    """
-                }
-            }
-        }
-
-        stage('Test Website') {
-            steps {
-                sh '''
-                    set -e
-                    curl -I https://3.139.90.22 || echo "Website not reachable yet"
-                '''
+                sh "sleep 5 && curl -I http://localhost:$HOST_PORT || echo 'Container starting...'"
             }
         }
     }
 
     post {
         success {
-            echo '✅ Deployment successful!'
-            echo '🌐 App URL: https://3.139.90.22'
-            echo '⚙️ Jenkins URL: https://3.139.90.22:8080'
+            echo "✅ DEPLOYMENT COMPLETE"
+            echo "🌐 Access your app at: http://${EC2_PUBLIC_IP}:${HOST_PORT}"
         }
-
         failure {
-            echo '❌ Deployment failed. Check Jenkins console output.'
-        }
-
-        always {
-            sh 'docker logout || true'
+            echo "❌ DEPLOYMENT FAILED"
         }
     }
 }
-
