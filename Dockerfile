@@ -1,32 +1,33 @@
-# Use official Python image
-FROM python:3.12-slim
+# 1. Use an official Python runtime as a parent image
+FROM python:3.11-slim
 
-# Prevent Python from creating .pyc files
-ENV PYTHONDONTWRITEBYTECODE=1
+# 2. Set environment variables
+# Prevents Python from writing .pyc files to disc
+ENV PYTHONDONTWRITEBYTECODE 1
+# Prevents Python from buffering stdout and stderr
+ENV PYTHONUNBUFFERED 1
 
-# Ensure logs appear immediately
-ENV PYTHONUNBUFFERED=1
-
-# Set working directory
+# 3. Set the working directory inside the container
 WORKDIR /app
 
-# Install system dependencies
+# 4. Install system dependencies
+# gcc and libpq-dev are often needed for database drivers like psycopg2
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first
-COPY requirements.txt .
-
-# Install Python packages
+# 5. Install Python dependencies
+# Copy only requirements first to leverage Docker cache
+COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all project files
-COPY . .
+# 6. Copy the rest of the project code
+COPY . /app/
 
-# Expose Django port
-EXPOSE 80
+# 7. Expose the port Django runs on
+EXPOSE 8000
 
-# Run migrations then start Django server
-CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:80"]
+# 8. Start the application
+# We use 0.0.0.0 so it's accessible outside the container
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
