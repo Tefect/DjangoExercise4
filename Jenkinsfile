@@ -17,7 +17,7 @@ pipeline {
         CONTAINER_PORT     = "8000" // Standard Django port inside container
         
         // New Server IP
-        EC2_PUBLIC_IP      = "13.59.85.38"
+        EC2_PUBLIC_IP      = "3.14.84.24"
     }
 
     stages {
