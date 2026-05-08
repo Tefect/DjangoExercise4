@@ -1,4 +1,4 @@
-# 1. Use an official Python runtime as a parent imag
+# 1. Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
 # 2. Set environment variables
